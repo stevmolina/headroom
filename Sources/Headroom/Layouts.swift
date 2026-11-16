@@ -16,7 +16,8 @@ struct TabsLayout: View {
     @Environment(UsageStore.self) private var store
     var appeared: Bool
     var onSelect: (SessionRow) -> Void
-    @State private var tab: Tab = .limits
+    /// Owned by PanelView so the tab survives a trip into session detail.
+    @Binding var tab: Tab
 
     var body: some View {
         VStack(spacing: 0) {
@@ -46,12 +47,6 @@ struct TabsLayout: View {
                 .padding(.top, 4)
                 .padding(.bottom, 16)
                 .transition(.opacity)
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .headroomCommand)) { note in
-            let c = note.object as? String ?? ""
-            if c.hasPrefix("tab:"), let t = Tab.allCases.first(where: { $0.rawValue.lowercased() == c.dropFirst(4) }) {
-                withAnimation(.smooth(duration: 0.25)) { tab = t }
             }
         }
     }

@@ -10,6 +10,7 @@ struct PanelView: View {
         selectedID.flatMap { id in store.sessions.first { $0.id == id } }
     }
     @State private var appeared = false
+    @State private var tab: TabsLayout.Tab = .limits
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,6 +37,13 @@ struct PanelView: View {
         .onReceive(NotificationCenter.default.publisher(for: .headroomCommand)) { note in
             let command = note.object as? String ?? ""
             if command == "back" { withAnimation(.smooth(duration: 0.32)) { selectedID = nil } }
+            if command.hasPrefix("tab:"),
+               let t = TabsLayout.Tab.allCases.first(where: { $0.rawValue.lowercased() == command.dropFirst(4) }) {
+                withAnimation(.smooth(duration: 0.25)) {
+                    selectedID = nil
+                    tab = t
+                }
+            }
             if command.hasPrefix("session:"), let i = Int(command.dropFirst(8)), store.sessions.indices.contains(i) {
                 open(store.sessions[i])
             }
@@ -52,7 +60,7 @@ struct PanelView: View {
         VStack(spacing: 0) {
             header
             Rectangle().fill(Theme.hairline).frame(height: 1)
-            TabsLayout(appeared: appeared, onSelect: open)
+            TabsLayout(appeared: appeared, onSelect: open, tab: $tab)
             if let error = store.lastError {
                 Rectangle().fill(Theme.hairline).frame(height: 1)
                 HStack(spacing: 6) {
