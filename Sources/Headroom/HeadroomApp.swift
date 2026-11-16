@@ -75,22 +75,28 @@ final class StatusController: NSObject {
             name: NSNotification.Name("AppleInterfaceThemeChangedNotification"), object: nil)
     }
 
-    @objc private func appearanceChanged() { render() }
+    @objc private func appearanceChanged() { drawPill() }
 
-    /// Redraws the pill now and again whenever the store values it reads change.
+    /// Redraws the pill whenever the store values it reads change. Only this
+    /// function re-arms the observation, so there is exactly one chain.
     private func render() {
         withObservationTracking {
-            let tight = store.tightest
-            let remaining = tight?.row.remaining
-            let level = remaining.map(Level.init(remaining:)) ?? .normal
-            item.button?.image = PillRenderer.image(remaining: remaining, level: level)
-            item.button?.toolTip = tight.map {
-                "\(Fmt.percent($0.row.remaining)) left · \($0.group.title) \($0.row.metric)"
-            } ?? "Headroom"
-            item.button?.setAccessibilityValue(item.button?.toolTip)
+            drawPill()
         } onChange: {
             Task { @MainActor [weak self] in self?.render() }
         }
+    }
+
+    private func drawPill() {
+        let tight = store.tightest
+        let remaining = tight?.row.remaining
+        let level = remaining.map(Level.init(remaining:)) ?? .normal
+        item.button?.image = PillRenderer.image(remaining: remaining, level: level,
+                                                scale: item.button?.window?.screen?.backingScaleFactor ?? 2)
+        item.button?.toolTip = tight.map {
+            "\(Fmt.percent($0.row.remaining)) left · \($0.group.title) \($0.row.metric)"
+        } ?? "Headroom"
+        item.button?.setAccessibilityValue(item.button?.toolTip)
     }
 
     // MARK: Panel
@@ -121,7 +127,7 @@ final class StatusController: NSObject {
         self.panel = panel
 
         let size = panel.frame.size
-        let screen = NSScreen.main?.visibleFrame ?? .zero
+        let screen = (buttonWindow.screen ?? NSScreen.main)?.visibleFrame ?? .zero
         var buttonRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
         // When a menu bar manager or macOS overflow hides the pill, its frame is
         // off screen; drop the panel at the top right, under the clock.
@@ -140,8 +146,9 @@ final class StatusController: NSObject {
         if passive {
             panel.orderFrontRegardless()
         } else {
+            // A non-activating panel takes keys without pulling focus from
+            // the app you were in, so nothing is left stuck when it closes.
             panel.makeKeyAndOrderFront(nil)
-            NSApp.activate()
         }
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.16
@@ -260,10 +267,10 @@ enum PillRenderer {
 
     /// Draws ring and number as one image. Template (system-tinted) when the
     /// limit is healthy; amber or red when it is running low.
-    static func image(remaining: Double?, level: Level) -> NSImage {
+    static func image(remaining: Double?, level: Level, scale: CGFloat) -> NSImage {
         let dark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let text = remaining.map { Fmt.percent($0) } ?? "–"
-        let key = "\(text)|\(level)|\(Int((remaining ?? 0) * 10))|\(dark)"
+        let key = "\(text)|\(level)|\(Int((remaining ?? 0) * 10))|\(dark)|\(scale)"
         if let hit = cache[key] { return hit }
 
         let color: Color = switch level {
@@ -284,7 +291,7 @@ enum PillRenderer {
         .environment(\.colorScheme, dark ? .dark : .light)
 
         let renderer = ImageRenderer(content: view)
-        renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
+        renderer.scale = scale
         let image = renderer.nsImage ?? NSImage(size: NSSize(width: 18, height: 18))
         image.isTemplate = level == .normal
         if cache.count > 64 { cache.removeAll() }

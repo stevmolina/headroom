@@ -63,6 +63,52 @@ final class HeadroomTests: XCTestCase {
         XCTAssertEqual(Fmt.percent(0), "0%")
     }
 
+    func testHistoryKeepsReadingsFiveMinutesApart() {
+        var h = QuotaHistory()
+        let start = Date()
+        // 60 polls, one a minute: about 12 readings should survive, not one.
+        for i in 0..<60 {
+            h.record(id: "x", sample: .init(at: start.addingTimeInterval(Double(i) * 60), used: Double(i), resetsAt: nil))
+        }
+        let count = h.samples["x"]?.count ?? 0
+        XCTAssertGreaterThanOrEqual(count, 10)
+        XCTAssertEqual(h.samples["x"]?.last?.used, 59)
+    }
+
+    func testIdleTrendGivesNoForecast() {
+        let now = Date()
+        let reset = now.addingTimeInterval(4 * 3600)
+        var h = QuotaHistory()
+        h.record(id: "x", sample: .init(at: now.addingTimeInterval(-1800), used: 60, resetsAt: reset))
+        XCTAssertNil(Burn.runsOutIn(metricId: "x", label: "5h", used: 60, resetsAt: reset, history: h, now: now))
+    }
+
+    func testRunTimesOutInsteadOfHanging() async {
+        let sleep = Tokscale(executable: URL(fileURLWithPath: "/bin/sleep"))
+        let started = Date()
+        do {
+            _ = try await sleep.run(["30"], timeout: 1)
+            XCTFail("expected a timeout")
+        } catch {
+            XCTAssertLessThan(Date().timeIntervalSince(started), 8)
+        }
+    }
+
+    func testRunReturnsOutputAndReportsMissingBinary() async throws {
+        let echo = Tokscale(executable: URL(fileURLWithPath: "/bin/echo"))
+        let data = try await echo.run(["hello"], timeout: 5)
+        XCTAssertEqual(String(decoding: data, as: UTF8.self), "hello\n")
+        let missing = Tokscale(executable: URL(fileURLWithPath: "/nonexistent/tokscale"))
+        do { _ = try await missing.run([], timeout: 5); XCTFail("expected an error") } catch {}
+    }
+
+    func testSessionRowToleratesMissingFields() throws {
+        let json = #"{"sessions":[{"client":"codex","sessionId":"s1","models":null,"cost":1.5}],"totalCost":1.5}"#
+        let report = try Tokscale.decoder.decode(SessionsReport.self, from: Data(json.utf8))
+        XCTAssertEqual(report.sessions.first?.models, [])
+        XCTAssertEqual(report.sessions.first?.cost, 1.5)
+    }
+
     func testLevels() {
         XCTAssertEqual(Level(remaining: 50), .normal)
         XCTAssertEqual(Level(remaining: 19), .low)

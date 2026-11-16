@@ -58,6 +58,30 @@ struct SessionRow: Codable, Hashable, Identifiable {
     var firstActiveMs: Int64
     var lastActiveMs: Int64
 
+    enum CodingKeys: String, CodingKey {
+        case client, sessionId, title, workspace, workspacePath, models, input, output, cacheRead, cacheWrite,
+             reasoning, cost, messageCount, turnCount, subagentCount, firstActiveMs, lastActiveMs
+    }
+
+    /// Lenient: a missing or null field becomes empty or zero instead of
+    /// failing the whole sessions list.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func int(_ k: CodingKeys) -> Int { (try? c.decodeIfPresent(Int.self, forKey: k)) ?? 0 }
+        func int64(_ k: CodingKeys) -> Int64 { (try? c.decodeIfPresent(Int64.self, forKey: k)) ?? 0 }
+        client = (try? c.decodeIfPresent(String.self, forKey: .client)) ?? "unknown"
+        sessionId = (try? c.decodeIfPresent(String.self, forKey: .sessionId)) ?? UUID().uuidString
+        title = try? c.decodeIfPresent(String.self, forKey: .title)
+        workspace = try? c.decodeIfPresent(String.self, forKey: .workspace)
+        workspacePath = try? c.decodeIfPresent(String.self, forKey: .workspacePath)
+        models = (try? c.decodeIfPresent([String].self, forKey: .models)) ?? []
+        input = int(.input); output = int(.output); cacheRead = int(.cacheRead)
+        cacheWrite = int(.cacheWrite); reasoning = int(.reasoning)
+        cost = (try? c.decodeIfPresent(Double.self, forKey: .cost)) ?? 0
+        messageCount = int(.messageCount); turnCount = int(.turnCount); subagentCount = int(.subagentCount)
+        firstActiveMs = int64(.firstActiveMs); lastActiveMs = int64(.lastActiveMs)
+    }
+
     var id: String { client + ":" + sessionId }
     var firstActive: Date { Date(timeIntervalSince1970: Double(firstActiveMs) / 1000) }
     var lastActive: Date { Date(timeIntervalSince1970: Double(lastActiveMs) / 1000) }

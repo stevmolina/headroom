@@ -4,10 +4,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-swift build -c release --arch arm64
-BIN="$(swift build -c release --arch arm64 --show-bin-path)/Headroom"
+swift build -c release
+BIN="$(swift build -c release --show-bin-path)/Headroom"
 APP="build/Headroom.app"
-VERSION="$(git describe --tags --always 2>/dev/null || echo 0.1.0)"
+VERSION="0.1.$(git rev-list --count HEAD 2>/dev/null || echo 0)"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"

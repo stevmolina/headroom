@@ -8,7 +8,7 @@ struct QuotaHistory: Codable {
         var resetsAt: Date?
     }
 
-    /// Samples per metric id, oldest first, at most one per two minutes.
+    /// Samples per metric id, oldest first, about five minutes apart.
     var samples: [String: [Sample]] = [:]
 
     mutating func record(_ usage: [ProviderUsage], at: Date) {
@@ -22,7 +22,11 @@ struct QuotaHistory: Codable {
 
     mutating func record(id: String, sample: Sample) {
         var list = samples[id] ?? []
-        if let last = list.last, sample.at.timeIntervalSince(last.at) < 120 {
+        // Keep readings at least five minutes apart, plus the newest one: the
+        // newest replaces the last entry until five minutes have passed since
+        // the entry before it. Replacing on every 60 s poll would keep a
+        // single reading and never build a trend.
+        if list.count >= 2, sample.at.timeIntervalSince(list[list.count - 2].at) < 300 {
             list[list.count - 1] = sample
         } else {
             list.append(sample)
@@ -67,7 +71,8 @@ enum Burn {
         }) {
             let dt = now.timeIntervalSince(past.at)
             let du = used - past.used
-            if du > 0 { return du / dt }
+            // Flat or falling in the same window: you are idle, so no forecast.
+            return du > 0 ? du / dt : nil
         }
 
         guard let resetsAt, let window = windowLength(label: label) else { return nil }

@@ -52,7 +52,10 @@ final class UsageStore {
 
     private(set) var isRefreshingUsage = false
     private(set) var isRefreshingSessions = false
-    private(set) var lastError: String?
+    private(set) var usageError: String?
+    private(set) var activityError: String?
+    /// The error to show under the panel, newest source first.
+    var lastError: String? { usageError ?? activityError }
     private(set) var tokscalePath: String?
 
     /// Ticks every few seconds so "updated 40s ago" and elapsed times stay live.
@@ -119,7 +122,8 @@ final class UsageStore {
 
     func refreshUsage() {
         guard !isRefreshingUsage else { return }
-        guard let tokscale else { lastError = Tokscale.Failure.notFound.errorDescription; return }
+        if tokscale == nil { resolveTokscale() }  // installed after launch
+        guard let tokscale else { usageError = Tokscale.Failure.notFound.errorDescription; return }
         isRefreshingUsage = true
         Task {
             defer { isRefreshingUsage = false }
@@ -132,10 +136,10 @@ final class UsageStore {
                 }
                 history.record(fresh, at: at)
                 history.save()
-                lastError = nil
+                usageError = nil
                 saveCache()
             } catch {
-                lastError = error.localizedDescription
+                usageError = error.localizedDescription
             }
         }
     }
@@ -159,8 +163,10 @@ final class UsageStore {
                     weekFetchedAt = Date()
                 }
             }
-            if case .failure(let e) = s { lastError = e.localizedDescription }
-            if case .failure(let e) = w { lastError = e.localizedDescription }
+            switch (s, w) {
+            case (.failure(let e), _), (_, .failure(let e)): activityError = e.localizedDescription
+            default: activityError = nil
+            }
             saveCache()
         }
     }
