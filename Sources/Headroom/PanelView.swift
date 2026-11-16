@@ -29,7 +29,7 @@ struct PanelView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .clipped()
         }
-        .frame(width: store.layout.size.width)
+        .frame(width: PanelSize.width)
         .frame(maxHeight: .infinity)
         .onAppear { playEntrance() }
         .onReceive(NotificationCenter.default.publisher(for: .headroomPanelOpened)) { _ in playEntrance() }
@@ -52,31 +52,7 @@ struct PanelView: View {
         VStack(spacing: 0) {
             header
             Rectangle().fill(Theme.hairline).frame(height: 1)
-            switch store.layout {
-            case .stack:
-                ScrollViewReader { proxy in
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 22) {
-                            LimitsSection(appeared: appeared).id("top")
-                            NowSection(onSelect: open)
-                            TodaySection(appeared: appeared).id("today")
-                            SessionsSection(onSelect: open)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 14)
-                        .padding(.bottom, 18)
-                    }
-                    .onReceive(NotificationCenter.default.publisher(for: .headroomCommand)) { note in
-                        handle(note.object as? String ?? "", proxy: proxy)
-                    }
-                }
-            case .tabs:
-                TabsLayout(appeared: appeared, onSelect: open)
-            case .wide:
-                WideLayout(appeared: appeared, onSelect: open)
-            case .tiles:
-                TilesLayout(appeared: appeared, onSelect: open)
-            }
+            TabsLayout(appeared: appeared, onSelect: open)
             if let error = store.lastError {
                 Rectangle().fill(Theme.hairline).frame(height: 1)
                 HStack(spacing: 6) {
@@ -96,14 +72,6 @@ struct PanelView: View {
     private func playEntrance() {
         appeared = false
         withAnimation(.spring(response: 0.7, dampingFraction: 0.86).delay(0.08)) { appeared = true }
-    }
-
-    private func handle(_ command: String, proxy: ScrollViewProxy) {
-        switch command {
-        case "scroll:top": withAnimation(.smooth(duration: 0.6)) { proxy.scrollTo("top", anchor: .top) }
-        case "scroll:sessions": withAnimation(.smooth(duration: 0.6)) { proxy.scrollTo("today", anchor: .top) }
-        default: break
-        }
     }
 
     private func open(_ session: SessionRow) {
@@ -150,11 +118,13 @@ struct PanelView: View {
 
 struct LimitsSection: View {
     @Environment(UsageStore.self) private var store
+    /// Off inside a tab whose name already says it.
+    var showsTitle = true
     var appeared: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Limits", trailing: "% left · resets")
+            SectionHeader(title: showsTitle ? "Limits" : "", trailing: "% left · resets")
             if store.limitGroups.isEmpty {
                 Placeholder(text: store.isRefreshingUsage ? "Reading quotas…" : "No quota data yet")
             }
@@ -277,12 +247,14 @@ struct NowSection: View {
 
 struct TodaySection: View {
     @Environment(UsageStore.self) private var store
+    /// Off inside a tab whose name already says it.
+    var showsTitle = true
     var appeared: Bool
 
     var body: some View {
         let today = store.today
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Today", trailing: store.weekFetchedAt.map { "as of " + Fmt.clock($0) })
+            SectionHeader(title: showsTitle ? "Today" : "", trailing: store.weekFetchedAt.map { "as of " + Fmt.clock($0) })
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(Fmt.money(today?.totals.cost ?? 0))
@@ -323,11 +295,13 @@ struct TodaySection: View {
 
 struct SessionsSection: View {
     @Environment(UsageStore.self) private var store
+    /// Off inside a tab whose name already says it.
+    var showsTitle = true
     var onSelect: (SessionRow) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            SectionHeader(title: "Sessions", trailing: store.sessions.isEmpty ? nil : "\(store.sessions.count) today")
+            SectionHeader(title: showsTitle ? "Sessions" : "", trailing: store.sessions.isEmpty ? nil : "\(store.sessions.count) today")
                 .padding(.bottom, 4)
             if store.sessions.isEmpty {
                 Placeholder(text: store.isRefreshingSessions ? "Reading sessions…" : "No sessions today")
@@ -564,10 +538,7 @@ private struct SettingsMenu: View {
                     ))
                 }
             }
-            Picker("Layout", selection: Binding(get: { store.layout }, set: { store.layout = $0 })) {
-                ForEach(PanelLayout.allCases, id: \.self) { Text($0.title).tag($0) }
-            }
-                        Toggle("Launch at login", isOn: Binding(
+            Toggle("Launch at login", isOn: Binding(
                 get: { launchAtLogin },
                 set: { on in
                     do {
