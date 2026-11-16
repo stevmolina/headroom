@@ -23,6 +23,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Menu bar only: no Dock icon, even when run outside the app bundle.
         NSApp.setActivationPolicy(.accessory)
+        // Screenshot helper: force light or dark for this app only.
+        switch ProcessInfo.processInfo.environment["HEADROOM_APPEARANCE"] {
+        case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+        case "light": NSApp.appearance = NSAppearance(named: .aqua)
+        default: break
+        }
         let store = UsageStore()
         status = StatusController(store: store)
         store.start()
@@ -128,8 +134,8 @@ final class StatusController: NSObject {
 
         let screen = (buttonWindow.screen ?? NSScreen.main)?.visibleFrame ?? .zero
         // Never taller than the screen can show below the menu bar.
-        let height = min(620, max(320, screen.height - 16))
-        panel.setContentSize(NSSize(width: 360, height: height))
+        let height = min(PanelSize.height, max(320, screen.height - 16))
+        panel.setContentSize(NSSize(width: PanelSize.width, height: height))
         let size = panel.frame.size
         var buttonRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
         // When a menu bar manager or macOS overflow hides the pill, its frame is
@@ -200,7 +206,7 @@ final class StatusController: NSObject {
         let root = PanelView()
             .environment(store)
         let hosting = NSHostingView(rootView: root)
-        hosting.frame = NSRect(x: 0, y: 0, width: 360, height: 620)
+        hosting.frame = NSRect(x: 0, y: 0, width: PanelSize.width, height: PanelSize.height)
 
         let effect = NSVisualEffectView(frame: hosting.frame)
         effect.material = .popover
@@ -231,8 +237,8 @@ final class StatusController: NSObject {
 extension Notification.Name {
     static let headroomPanelOpened = Notification.Name("headroomPanelOpened")
     static let headroomPanelClosed = Notification.Name("headroomPanelClosed")
-    /// Automation commands for the panel view: "scroll:sessions", "scroll:top",
-    /// "session:<index>", "back".
+    /// Automation commands for the panel view: "tab:limits", "tab:today",
+    /// "tab:sessions", "session:<index>", "back".
     static let headroomCommand = Notification.Name("headroomCommand")
 }
 

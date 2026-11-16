@@ -10,6 +10,7 @@ struct PanelView: View {
         selectedID.flatMap { id in store.sessions.first { $0.id == id } }
     }
     @State private var appeared = false
+    @State private var tab: TabsLayout.Tab = .limits
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,12 +30,23 @@ struct PanelView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .clipped()
         }
-        .frame(width: 360)
+        .frame(width: PanelSize.width)
         .frame(maxHeight: .infinity)
         .onAppear { playEntrance() }
         .onReceive(NotificationCenter.default.publisher(for: .headroomPanelOpened)) { _ in playEntrance() }
         .onReceive(NotificationCenter.default.publisher(for: .headroomCommand)) { note in
-            if note.object as? String == "back" { withAnimation(.smooth(duration: 0.32)) { selectedID = nil } }
+            let command = note.object as? String ?? ""
+            if command == "back" { withAnimation(.smooth(duration: 0.32)) { selectedID = nil } }
+            if command.hasPrefix("tab:"),
+               let t = TabsLayout.Tab.allCases.first(where: { $0.rawValue.lowercased() == command.dropFirst(4) }) {
+                withAnimation(.smooth(duration: 0.25)) {
+                    selectedID = nil
+                    tab = t
+                }
+            }
+            if command.hasPrefix("session:"), let i = Int(command.dropFirst(8)), store.sessions.indices.contains(i) {
+                open(store.sessions[i])
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .headroomPanelClosed)) { _ in
             selectedID = nil
@@ -48,22 +60,7 @@ struct PanelView: View {
         VStack(spacing: 0) {
             header
             Rectangle().fill(Theme.hairline).frame(height: 1)
-            ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 22) {
-                        LimitsSection(appeared: appeared).id("top")
-                        NowSection(onSelect: open)
-                        TodaySection(appeared: appeared).id("today")
-                        SessionsSection(onSelect: open)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 14)
-                    .padding(.bottom, 18)
-                }
-                .onReceive(NotificationCenter.default.publisher(for: .headroomCommand)) { note in
-                    handle(note.object as? String ?? "", proxy: proxy)
-                }
-            }
+            TabsLayout(appeared: appeared, onSelect: open, tab: $tab)
             if let error = store.lastError {
                 Rectangle().fill(Theme.hairline).frame(height: 1)
                 HStack(spacing: 6) {
@@ -83,17 +80,6 @@ struct PanelView: View {
     private func playEntrance() {
         appeared = false
         withAnimation(.spring(response: 0.7, dampingFraction: 0.86).delay(0.08)) { appeared = true }
-    }
-
-    private func handle(_ command: String, proxy: ScrollViewProxy) {
-        switch command {
-        case "scroll:top": withAnimation(.smooth(duration: 0.6)) { proxy.scrollTo("top", anchor: .top) }
-        case "scroll:sessions": withAnimation(.smooth(duration: 0.6)) { proxy.scrollTo("today", anchor: .top) }
-        default:
-            if command.hasPrefix("session:"), let i = Int(command.dropFirst(8)), store.sessions.indices.contains(i) {
-                open(store.sessions[i])
-            }
-        }
     }
 
     private func open(_ session: SessionRow) {
@@ -138,13 +124,15 @@ struct PanelView: View {
 
 // MARK: - Limits
 
-private struct LimitsSection: View {
+struct LimitsSection: View {
     @Environment(UsageStore.self) private var store
+    /// Off inside a tab whose name already says it.
+    var showsTitle = true
     var appeared: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Limits", trailing: "% left · resets")
+            SectionHeader(title: showsTitle ? "Limits" : "", trailing: "% left · resets")
             if store.limitGroups.isEmpty {
                 Placeholder(text: store.isRefreshingUsage ? "Reading quotas…" : "No quota data yet")
             }
@@ -218,7 +206,7 @@ private struct LimitRowView: View {
 
 // MARK: - Now
 
-private struct NowSection: View {
+struct NowSection: View {
     @Environment(UsageStore.self) private var store
     var onSelect: (SessionRow) -> Void
 
@@ -265,14 +253,16 @@ private struct NowSection: View {
 
 // MARK: - Today
 
-private struct TodaySection: View {
+struct TodaySection: View {
     @Environment(UsageStore.self) private var store
+    /// Off inside a tab whose name already says it.
+    var showsTitle = true
     var appeared: Bool
 
     var body: some View {
         let today = store.today
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Today", trailing: store.weekFetchedAt.map { "as of " + Fmt.clock($0) })
+            SectionHeader(title: showsTitle ? "Today" : "", trailing: store.weekFetchedAt.map { "as of " + Fmt.clock($0) })
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(Fmt.money(today?.totals.cost ?? 0))
@@ -311,13 +301,15 @@ private struct TodaySection: View {
 
 // MARK: - Sessions
 
-private struct SessionsSection: View {
+struct SessionsSection: View {
     @Environment(UsageStore.self) private var store
+    /// Off inside a tab whose name already says it.
+    var showsTitle = true
     var onSelect: (SessionRow) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            SectionHeader(title: "Sessions", trailing: store.sessions.isEmpty ? nil : "\(store.sessions.count) today")
+            SectionHeader(title: showsTitle ? "Sessions" : "", trailing: store.sessions.isEmpty ? nil : "\(store.sessions.count) today")
                 .padding(.bottom, 4)
             if store.sessions.isEmpty {
                 Placeholder(text: store.isRefreshingSessions ? "Reading sessions…" : "No sessions today")
@@ -503,7 +495,7 @@ private struct DetailLine: View {
 
 // MARK: - Small pieces
 
-private struct Placeholder: View {
+struct Placeholder: View {
     var text: String
     var body: some View {
         Text(text)

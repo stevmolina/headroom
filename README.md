@@ -2,11 +2,12 @@
 
 A small macOS menu bar app that shows how much room you have left on your AI coding plans.
 
-The menu bar shows one ring and one number: the limit closest to running out, across every provider. Click it for the full picture.
+The menu bar shows one ring and one number: the limit closest to running out, across every provider. Click it for three short tabs: Limits, Today and Sessions.
 
 <p>
-  <img src="docs/proof/panel-light.png" width="300" alt="Headroom panel, light mode: limits per provider">
-  <img src="docs/proof/panel-dark.png" width="300" alt="Headroom panel, dark mode">
+  <img src="docs/proof/panel-light.png" width="280" alt="Limits tab, light mode">
+  <img src="docs/proof/today-light.png" width="280" alt="Today tab, light mode">
+  <img src="docs/proof/sessions-dark.png" width="280" alt="Sessions tab, dark mode">
 </p>
 
 <img src="docs/proof/pill-dark.png" width="330" alt="The menu bar pill: a red ring and 0%">
@@ -15,10 +16,9 @@ Project names in these screenshots are hidden with `HEADROOM_REDACT=1`.
 
 ## What it shows
 
-- **Limits.** One block per provider and quota group (Claude, Codex, Antigravity's Gemini and Claude/GPT groups, Grok, Cursor, anything tokscale reports). Each limit has a thin bar, % left and when it resets. When your pace says a limit runs out before it resets, it says "Runs out in about 3h".
-- **Now.** Agent sessions that wrote a message in the last five minutes: project, model, elapsed time, cost so far.
-- **Today.** Total cost and tokens, the last seven days as small bars, and today's top model.
-- **Sessions.** Today's sessions. Click one for tokens in, out and cache, cost, duration, model and project.
+- **Limits tab.** One block per provider and quota group (Claude, Codex, Antigravity's Gemini and Claude/GPT groups, Grok, Cursor, anything tokscale reports). Each limit has a thin bar, % left and when it resets. When your pace says a limit runs out before it resets, it says "Runs out in about 3h".
+- **Today tab.** Total cost and tokens, the last seven days as small bars, today's top model, and below it **Now**: agent sessions that wrote a message in the last five minutes, with project, model, elapsed time and cost so far.
+- **Sessions tab.** Today's sessions. Click one for tokens in, out and cache, cost, duration, model and project.
 
 The pill is grey normally, amber under 20% left and red under 5% left. Choose which providers count toward the pill in the `…` menu.
 
@@ -64,7 +64,7 @@ swift test         # unit tests: date parsing, model names, burn-rate forecast
 swift scripts/make-icon.swift && iconutil -c icns build/AppIcon.iconset -o Resources/AppIcon.icns
 ```
 
-Environment switches: `HEADROOM_REDACT=1` hides project names, `HEADROOM_AUTOMATION=1` lets a script open the panel and step through it with distributed notifications named `dev.stevmolina.headroom.automation` (`open`, `scroll:sessions`, `session:0`, `back`, `close`), without touching the mouse.
+Environment switches: `HEADROOM_REDACT=1` hides project names, `HEADROOM_APPEARANCE=light|dark` forces the app's look, `HEADROOM_AUTOMATION=1` lets a script open the panel and step through it with distributed notifications named `dev.stevmolina.headroom.automation` (`open`, `tab:today`, `tab:sessions`, `session:0`, `back`, `close`), without touching the mouse.
 
 ## License
 
