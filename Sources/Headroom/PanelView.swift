@@ -573,13 +573,9 @@ private struct SettingsMenu: View {
 // MARK: - Project names
 
 extension SessionRow {
-    /// Repo name, with Claude Code's undecodable folder slugs shortened to
-    /// their last segment ("-Users-me-dev" → "dev").
-    var projectName: String {
-        guard let w = workspace, !w.isEmpty else { return "No project" }
-        if w.hasPrefix("-") { return String(w.split(separator: "-").last ?? Substring(w)).lowercased() }
-        return w
-    }
+    /// Short project name: the GitHub repo when the folder is a git repo,
+    /// else a readable name for the folder. See ProjectNamer.
+    var projectName: String { ProjectNamer.name(workspace: workspace, path: workspacePath) }
 }
 
 /// Hides project names for public screenshots (`HEADROOM_REDACT=1`).

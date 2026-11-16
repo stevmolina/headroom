@@ -109,6 +109,34 @@ final class HeadroomTests: XCTestCase {
         XCTAssertEqual(report.sessions.first?.cost, 1.5)
     }
 
+    func testProjectNamesFromSlugs() {
+        let home = "/Users/me"
+        XCTAssertEqual(ProjectNamer.fromSlug("-Users-me--t3-worktrees-rooms-t3-bced9cd1", home: home), "rooms")
+        XCTAssertEqual(ProjectNamer.fromSlug("-Users-me--t3-worktrees-steven-agents-t3-0a1b2c3d", home: home), "steven-agents")
+        XCTAssertEqual(ProjectNamer.fromSlug("-Users-me-Dev", home: home), "~/dev")
+        XCTAssertEqual(ProjectNamer.fromSlug("-Users-me", home: home), "~")
+        XCTAssertEqual(ProjectNamer.fromSlug("-Users-me-dev-api--claude-worktrees-fix", home: home), "api")
+        XCTAssertEqual(ProjectNamer.resolve(workspace: nil, path: "/Users/me/OpenBot/Agents/agent-1", home: home), "OpenBot agent")
+        XCTAssertEqual(ProjectNamer.resolve(workspace: nil, path: nil, home: home), "No project")
+    }
+
+    func testRepoNameFromRemote() {
+        XCTAssertEqual(ProjectNamer.repoName(fromRemote: "git@github.com:me/headroom.git"), "headroom")
+        XCTAssertEqual(ProjectNamer.repoName(fromRemote: "https://github.com/me/tokscale"), "tokscale")
+    }
+
+    func testRealWorktreeResolvesToMainRepo() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("hr-\(UUID().uuidString)").path
+        let repo = root + "/main-folder", wt = root + "/wt/t3-abc"
+        try fm.createDirectory(atPath: repo + "/.git/worktrees/t3-abc", withIntermediateDirectories: true)
+        try fm.createDirectory(atPath: wt + "/src", withIntermediateDirectories: true)
+        try "[remote \"origin\"]\n\turl = git@github.com:me/real-repo.git\n".write(toFile: repo + "/.git/config", atomically: true, encoding: .utf8)
+        try "gitdir: \(repo)/.git/worktrees/t3-abc\n".write(toFile: wt + "/.git", atomically: true, encoding: .utf8)
+        XCTAssertEqual(ProjectNamer.gitRepoName(startingAt: wt + "/src", home: root), "real-repo")
+        try? fm.removeItem(atPath: root)
+    }
+
     func testLevels() {
         XCTAssertEqual(Level(remaining: 50), .normal)
         XCTAssertEqual(Level(remaining: 19), .low)
