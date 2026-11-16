@@ -1,0 +1,15 @@
+Check run 2026-11-16 16:01. Headroom reading taken 3s before `tokscale usage --light`.
+
+Limit                                         Headroom  tokscale  match
+Claude Session                                     32%       32%  yes
+Claude Weekly                                      72%       72%  yes
+Claude Fable                                       92%       92%  yes
+Codex 5h                                          100%      100%  yes
+Codex Weekly                                       24%       24%  yes
+Antigravity (Gemini Models) weekly                 48%       48%  yes
+Antigravity (Gemini Models) 5h                    100%      100%  yes
+Antigravity (Claude and GPT models) weekly          1%        1%  yes
+Antigravity (Claude and GPT models) 5h            100%      100%  yes
+Grok Weekly                                         0%        0%  yes
+
+All match.
