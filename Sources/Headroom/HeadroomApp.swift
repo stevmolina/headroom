@@ -126,8 +126,11 @@ final class StatusController: NSObject {
         let panel = self.panel ?? makePanel()
         self.panel = panel
 
-        let size = panel.frame.size
         let screen = (buttonWindow.screen ?? NSScreen.main)?.visibleFrame ?? .zero
+        // Never taller than the screen can show below the menu bar.
+        let height = min(620, max(320, screen.height - 16))
+        panel.setContentSize(NSSize(width: 360, height: height))
+        let size = panel.frame.size
         var buttonRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
         // When a menu bar manager or macOS overflow hides the pill, its frame is
         // off screen; drop the panel at the top right, under the clock.
@@ -138,7 +141,7 @@ final class StatusController: NSObject {
         }
         var x = buttonRect.midX - size.width / 2
         x = min(max(x, screen.minX + 8), screen.maxX - size.width - 8)
-        let y = min(buttonRect.minY, screen.maxY) - size.height - 6
+        let y = max(screen.minY + 4, min(buttonRect.minY, screen.maxY) - size.height - 6)
         panel.setFrameOrigin(NSPoint(x: x, y: y))
 
         store.panelOpened()

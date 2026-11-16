@@ -43,7 +43,14 @@ enum Level {
 final class UsageStore {
     // Latest readings
     private(set) var usage: [ProviderUsage] = []
-    private(set) var sessions: [SessionRow] = []
+    private var sessionsSnapshot: [SessionRow] = []
+
+    /// Today's sessions. A snapshot from an earlier day (a restored cache, or
+    /// the app running past midnight) shows as empty until the next refresh.
+    var sessions: [SessionRow] {
+        guard let at = sessionsFetchedAt, Calendar.current.isDate(at, inSameDayAs: now) else { return [] }
+        return sessionsSnapshot
+    }
     private(set) var week: [GraphDay] = []
 
     private(set) var usageFetchedAt: Date?
@@ -155,7 +162,7 @@ final class UsageStore {
             let (s, w) = await (sessionsResult, weekResult)
             withAnimation(.smooth(duration: 0.6)) {
                 if case .success(let report) = s {
-                    sessions = report.sessions
+                    sessionsSnapshot = report.sessions
                     sessionsFetchedAt = Date()
                 }
                 if case .success(let graph) = w {
@@ -185,14 +192,21 @@ final class UsageStore {
                     remaining: m.remainingPercent,
                     used: m.usedPercent,
                     resetsAt: m.resetsAt,
-                    runsOutIn: Burn.runsOutIn(
-                        metricId: rowId, label: m.label, used: m.usedPercent,
-                        resetsAt: m.resetsAt, history: history, now: now
-                    )
+                    runsOutIn: forecast(rowId: rowId, metric: m)
                 )
             }
             return LimitGroup(id: id, provider: card.provider, group: group, plan: card.plan, rows: rows)
         }
+    }
+
+    /// Forecast made at the moment of the reading, then counted down with the
+    /// clock, so it does not drift while no new reading arrives.
+    private func forecast(rowId: String, metric m: ProviderUsage.Metric) -> TimeInterval? {
+        let at = usageFetchedAt ?? now
+        guard let out = Burn.runsOutIn(metricId: rowId, label: m.label, used: m.usedPercent,
+                                       resetsAt: m.resetsAt, history: history, now: at) else { return nil }
+        let left = out - now.timeIntervalSince(at)
+        return left > 0 ? left : nil
     }
 
     /// Provider names that can be toggled in Settings.
@@ -272,7 +286,7 @@ final class UsageStore {
     private static var cacheURL: URL { AppPaths.support.appendingPathComponent("cache.json") }
 
     private func saveCache() {
-        let cache = Cache(usage: usage, usageFetchedAt: usageFetchedAt, sessions: sessions,
+        let cache = Cache(usage: usage, usageFetchedAt: usageFetchedAt, sessions: sessionsSnapshot,
                           sessionsFetchedAt: sessionsFetchedAt, week: week, weekFetchedAt: weekFetchedAt)
         if let data = try? JSONEncoder().encode(cache) {
             try? data.write(to: Self.cacheURL, options: .atomic)
@@ -284,7 +298,7 @@ final class UsageStore {
               let cache = try? JSONDecoder().decode(Cache.self, from: data) else { return }
         usage = cache.usage
         usageFetchedAt = cache.usageFetchedAt
-        sessions = cache.sessions
+        sessionsSnapshot = cache.sessions
         sessionsFetchedAt = cache.sessionsFetchedAt
         week = cache.week
         weekFetchedAt = cache.weekFetchedAt

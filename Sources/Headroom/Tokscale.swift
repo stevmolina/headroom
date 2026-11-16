@@ -114,11 +114,13 @@ struct Tokscale: Sendable {
         readers.enter()
         DispatchQueue.global().async {
             buffers.setOut(out.fileHandleForReading.readDataToEndOfFile())
+            try? out.fileHandleForReading.close()
             readers.leave()
         }
         readers.enter()
         DispatchQueue.global().async {
             buffers.setErr(err.fileHandleForReading.readDataToEndOfFile())
+            try? err.fileHandleForReading.close()
             readers.leave()
         }
 
@@ -131,12 +133,11 @@ struct Tokscale: Sendable {
                 _ = exited.wait(timeout: .now() + 2)
             }
         }
-        // A grandchild can hold the pipes open after tokscale exits; give the
-        // readers a moment, then stop waiting for them.
-        if readers.wait(timeout: .now() + 3) == .timedOut {
-            try? out.fileHandleForReading.close()
-            try? err.fileHandleForReading.close()
-            if !timedOut { return .failure(Failure.timedOut(command)) }
+        // A grandchild can hold the pipes open after tokscale exits. Give the
+        // readers a moment, then stop waiting; each reader closes its own
+        // handle when its read returns, so nothing is closed under it.
+        if readers.wait(timeout: .now() + 3) == .timedOut, !timedOut {
+            return .failure(Failure.timedOut(command))
         }
 
         if timedOut { return .failure(Failure.timedOut(command)) }

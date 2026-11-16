@@ -3,7 +3,12 @@ import SwiftUI
 
 struct PanelView: View {
     @Environment(UsageStore.self) private var store
-    @State private var selected: SessionRow?
+    /// The open session, by id, so the detail always shows the latest reading.
+    @State private var selectedID: String?
+
+    private var selected: SessionRow? {
+        selectedID.flatMap { id in store.sessions.first { $0.id == id } }
+    }
     @State private var appeared = false
 
     var body: some View {
@@ -11,7 +16,7 @@ struct PanelView: View {
             ZStack {
                 if let selected {
                     SessionDetailView(session: selected, now: store.now) {
-                        withAnimation(.smooth(duration: 0.32)) { self.selected = nil }
+                        withAnimation(.smooth(duration: 0.32)) { self.selectedID = nil }
                     }
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
                                             removal: .move(edge: .trailing).combined(with: .opacity)))
@@ -24,14 +29,15 @@ struct PanelView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .clipped()
         }
-        .frame(width: 360, height: 620)
+        .frame(width: 360)
+        .frame(maxHeight: .infinity)
         .onAppear { playEntrance() }
         .onReceive(NotificationCenter.default.publisher(for: .headroomPanelOpened)) { _ in playEntrance() }
         .onReceive(NotificationCenter.default.publisher(for: .headroomCommand)) { note in
-            if note.object as? String == "back" { withAnimation(.smooth(duration: 0.32)) { selected = nil } }
+            if note.object as? String == "back" { withAnimation(.smooth(duration: 0.32)) { selectedID = nil } }
         }
         .onReceive(NotificationCenter.default.publisher(for: .headroomPanelClosed)) { _ in
-            selected = nil
+            selectedID = nil
             appeared = false
         }
     }
@@ -91,7 +97,7 @@ struct PanelView: View {
     }
 
     private func open(_ session: SessionRow) {
-        withAnimation(.smooth(duration: 0.32)) { selected = session }
+        withAnimation(.smooth(duration: 0.32)) { selectedID = session.id }
     }
 
     private var header: some View {
