@@ -29,12 +29,16 @@ struct PanelView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .clipped()
         }
-        .frame(width: 360)
+        .frame(width: store.layout.size.width)
         .frame(maxHeight: .infinity)
         .onAppear { playEntrance() }
         .onReceive(NotificationCenter.default.publisher(for: .headroomPanelOpened)) { _ in playEntrance() }
         .onReceive(NotificationCenter.default.publisher(for: .headroomCommand)) { note in
-            if note.object as? String == "back" { withAnimation(.smooth(duration: 0.32)) { selectedID = nil } }
+            let command = note.object as? String ?? ""
+            if command == "back" { withAnimation(.smooth(duration: 0.32)) { selectedID = nil } }
+            if command.hasPrefix("session:"), let i = Int(command.dropFirst(8)), store.sessions.indices.contains(i) {
+                open(store.sessions[i])
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .headroomPanelClosed)) { _ in
             selectedID = nil
@@ -48,21 +52,30 @@ struct PanelView: View {
         VStack(spacing: 0) {
             header
             Rectangle().fill(Theme.hairline).frame(height: 1)
-            ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 22) {
-                        LimitsSection(appeared: appeared).id("top")
-                        NowSection(onSelect: open)
-                        TodaySection(appeared: appeared).id("today")
-                        SessionsSection(onSelect: open)
+            switch store.layout {
+            case .stack:
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 22) {
+                            LimitsSection(appeared: appeared).id("top")
+                            NowSection(onSelect: open)
+                            TodaySection(appeared: appeared).id("today")
+                            SessionsSection(onSelect: open)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 14)
+                        .padding(.bottom, 18)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 14)
-                    .padding(.bottom, 18)
+                    .onReceive(NotificationCenter.default.publisher(for: .headroomCommand)) { note in
+                        handle(note.object as? String ?? "", proxy: proxy)
+                    }
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .headroomCommand)) { note in
-                    handle(note.object as? String ?? "", proxy: proxy)
-                }
+            case .tabs:
+                TabsLayout(appeared: appeared, onSelect: open)
+            case .wide:
+                WideLayout(appeared: appeared, onSelect: open)
+            case .tiles:
+                TilesLayout(appeared: appeared, onSelect: open)
             }
             if let error = store.lastError {
                 Rectangle().fill(Theme.hairline).frame(height: 1)
@@ -89,10 +102,7 @@ struct PanelView: View {
         switch command {
         case "scroll:top": withAnimation(.smooth(duration: 0.6)) { proxy.scrollTo("top", anchor: .top) }
         case "scroll:sessions": withAnimation(.smooth(duration: 0.6)) { proxy.scrollTo("today", anchor: .top) }
-        default:
-            if command.hasPrefix("session:"), let i = Int(command.dropFirst(8)), store.sessions.indices.contains(i) {
-                open(store.sessions[i])
-            }
+        default: break
         }
     }
 
@@ -138,7 +148,7 @@ struct PanelView: View {
 
 // MARK: - Limits
 
-private struct LimitsSection: View {
+struct LimitsSection: View {
     @Environment(UsageStore.self) private var store
     var appeared: Bool
 
@@ -218,7 +228,7 @@ private struct LimitRowView: View {
 
 // MARK: - Now
 
-private struct NowSection: View {
+struct NowSection: View {
     @Environment(UsageStore.self) private var store
     var onSelect: (SessionRow) -> Void
 
@@ -265,7 +275,7 @@ private struct NowSection: View {
 
 // MARK: - Today
 
-private struct TodaySection: View {
+struct TodaySection: View {
     @Environment(UsageStore.self) private var store
     var appeared: Bool
 
@@ -311,7 +321,7 @@ private struct TodaySection: View {
 
 // MARK: - Sessions
 
-private struct SessionsSection: View {
+struct SessionsSection: View {
     @Environment(UsageStore.self) private var store
     var onSelect: (SessionRow) -> Void
 
@@ -503,7 +513,7 @@ private struct DetailLine: View {
 
 // MARK: - Small pieces
 
-private struct Placeholder: View {
+struct Placeholder: View {
     var text: String
     var body: some View {
         Text(text)
@@ -554,7 +564,10 @@ private struct SettingsMenu: View {
                     ))
                 }
             }
-            Toggle("Launch at login", isOn: Binding(
+            Picker("Layout", selection: Binding(get: { store.layout }, set: { store.layout = $0 })) {
+                ForEach(PanelLayout.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+                        Toggle("Launch at login", isOn: Binding(
                 get: { launchAtLogin },
                 set: { on in
                     do {

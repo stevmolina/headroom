@@ -60,6 +60,8 @@ final class StatusController: NSObject {
             button.imagePosition = .imageOnly
         }
         render()
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(layoutChanged), name: .headroomLayoutChanged, object: nil)
         if ProcessInfo.processInfo.environment["HEADROOM_AUTOMATION"] == "1" {
             // Test hook: drive the panel from a script without the mouse or
             // keyboard, e.g. for screenshots and recordings.
@@ -76,6 +78,16 @@ final class StatusController: NSObject {
     }
 
     @objc private func appearanceChanged() { drawPill() }
+
+    /// A new layout has a new size: reopen in place so it lands under the pill.
+    @objc private func layoutChanged() {
+        guard isOpen, let panel else { return }
+        let passive = !panel.isKeyWindow
+        if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+        clickMonitor = nil
+        isOpen = false
+        open(passive: passive)
+    }
 
     /// Redraws the pill whenever the store values it reads change. Only this
     /// function re-arms the observation, so there is exactly one chain.
@@ -114,6 +126,8 @@ final class StatusController: NSObject {
         switch command {
         case "open": if !isOpen { open(passive: true) }
         case "close": close()
+        case let c where c.hasPrefix("layout:"):
+            if let l = PanelLayout(rawValue: String(c.dropFirst(7))) { store.layout = l }
         default: NotificationCenter.default.post(name: .headroomCommand, object: command)
         }
     }
@@ -128,8 +142,9 @@ final class StatusController: NSObject {
 
         let screen = (buttonWindow.screen ?? NSScreen.main)?.visibleFrame ?? .zero
         // Never taller than the screen can show below the menu bar.
-        let height = min(620, max(320, screen.height - 16))
-        panel.setContentSize(NSSize(width: 360, height: height))
+        let wanted = store.layout.size
+        let height = min(wanted.height, max(320, screen.height - 16))
+        panel.setContentSize(NSSize(width: wanted.width, height: height))
         let size = panel.frame.size
         var buttonRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
         // When a menu bar manager or macOS overflow hides the pill, its frame is
@@ -234,6 +249,7 @@ extension Notification.Name {
     /// Automation commands for the panel view: "scroll:sessions", "scroll:top",
     /// "session:<index>", "back".
     static let headroomCommand = Notification.Name("headroomCommand")
+    static let headroomLayoutChanged = Notification.Name("headroomLayoutChanged")
 }
 
 /// Borderless floating panel with rounded corners and a soft shadow.

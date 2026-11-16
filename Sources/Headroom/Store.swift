@@ -72,6 +72,15 @@ final class UsageStore {
         didSet { UserDefaults.standard.set(Array(hiddenProviders), forKey: "hiddenProviders") }
     }
 
+    /// How the panel arranges its sections. Set from the … menu, or with
+    /// HEADROOM_LAYOUT=stack|tabs|wide|tiles.
+    var layout: PanelLayout {
+        didSet {
+            UserDefaults.standard.set(layout.rawValue, forKey: "layout")
+            NotificationCenter.default.post(name: .headroomLayoutChanged, object: nil)
+        }
+    }
+
     var tokscaleOverride: String {
         didSet {
             UserDefaults.standard.set(tokscaleOverride, forKey: "tokscalePath")
@@ -85,6 +94,9 @@ final class UsageStore {
 
     init() {
         hiddenProviders = Set(UserDefaults.standard.stringArray(forKey: "hiddenProviders") ?? [])
+        let layoutName = ProcessInfo.processInfo.environment["HEADROOM_LAYOUT"]
+            ?? UserDefaults.standard.string(forKey: "layout") ?? ""
+        layout = PanelLayout(rawValue: layoutName) ?? .stack
         tokscaleOverride = UserDefaults.standard.string(forKey: "tokscalePath") ?? ""
         resolveTokscale()
         loadCache()
