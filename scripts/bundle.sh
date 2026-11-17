@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Builds Headroom.app (release) and installs it to ~/Applications.
+# Builds Headroom.app (release) and installs it to /Applications.
+# Signs with your Apple Development identity when one is in the keychain;
+# menu bar managers on macOS 27 (holzBar, Thaw) hide an ad-hoc app in
+# ~/Applications even when it is set to stay visible.
 # Usage: scripts/bundle.sh [--no-install]
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -32,13 +35,17 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
-codesign --force --sign - "$APP" >/dev/null
+IDENTITY="${HEADROOM_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development|Developer ID Application/ {print $2; exit}')}"
+if [[ -n "$IDENTITY" ]]; then
+  codesign --force --options runtime --sign "$IDENTITY" "$APP" >/dev/null
+else
+  codesign --force --sign - "$APP" >/dev/null
+fi
 
 if [[ "${1:-}" != "--no-install" ]]; then
-  mkdir -p "$HOME/Applications"
   pkill -x Headroom 2>/dev/null || true
-  rm -rf "$HOME/Applications/Headroom.app"
-  cp -R "$APP" "$HOME/Applications/Headroom.app"
-  open "$HOME/Applications/Headroom.app"
-  echo "Installed and opened ~/Applications/Headroom.app"
+  rm -rf "/Applications/Headroom.app" "$HOME/Applications/Headroom.app"
+  cp -R "$APP" "/Applications/Headroom.app"
+  open "/Applications/Headroom.app"
+  echo "Installed and opened /Applications/Headroom.app"
 fi

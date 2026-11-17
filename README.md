@@ -49,12 +49,12 @@ mkdir -p ~/.local/bin && cp target/release/tokscale ~/.local/bin/
 
 # 2. Headroom
 git clone https://github.com/stevmolina/headroom && cd headroom
-scripts/bundle.sh          # builds Headroom.app, installs to ~/Applications and opens it
+scripts/bundle.sh          # builds Headroom.app, installs to /Applications and opens it
 ```
 
 Headroom looks for tokscale in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin` and `~/.cargo/bin`, or at `$HEADROOM_TOKSCALE`.
 
-On macOS 27 a new menu bar item starts in the hidden overflow (the `»` button). Cmd-drag the pill into the bar once, or place it with your menu bar manager.
+On macOS 27 a new menu bar item can start in the overflow (the `«` button). With a menu bar manager such as [holzBar](https://github.com/holzcloud/holzBar), set Headroom to Visible. Keep the app in `/Applications` and signed with a developer identity (the script does both when you have one): on macOS 27 the managers hide an ad-hoc app in `~/Applications` even when it is set to stay visible.
 
 ## Develop
 
